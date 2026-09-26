@@ -140,22 +140,42 @@
   var searchIn = $('#search');
   searchIn.addEventListener('input', function () { renderMenu(searchIn.value); });
 
-  var spyObs;
+  var abaAtiva = '';
+  function ativarAba(id) {
+    if (id === abaAtiva) return; // só mexe quando a categoria muda de verdade
+    abaAtiva = id;
+    var ul = $('#tabs'), alvo = null;
+    $$('#tabs a').forEach(function (a) {
+      var on = a.getAttribute('href') === '#' + id;
+      a.classList.toggle('is-active', on);
+      if (on) alvo = a;
+    });
+    // Rola apenas a faixa horizontal de abas. Não usar scrollIntoView aqui:
+    // ele também rola a página e trava a rolagem de quem está descendo o cardápio.
+    if (alvo && ul.scrollWidth > ul.clientWidth) {
+      var left = alvo.offsetLeft - (ul.clientWidth - alvo.offsetWidth) / 2;
+      ul.scrollTo({ left: Math.max(0, left), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
+  }
+  // Descobre a categoria atual pela posição de rolagem: a última seção cujo topo
+  // já passou da linha logo abaixo das abas. Um cálculo por quadro, listener passivo.
+  var secoes = [], agendado = false;
+  function categoriaAtual() {
+    agendado = false;
+    if (!secoes.length) return;
+    var tabs = $('.cat-tabs'), linha = tabs.getBoundingClientRect().bottom + 24, atual = secoes[0].id;
+    for (var i = 0; i < secoes.length; i++) { if (secoes[i].getBoundingClientRect().top <= linha) atual = secoes[i].id; else break; }
+    ativarAba(atual);
+  }
+  window.addEventListener('scroll', function () {
+    if (agendado) return;
+    agendado = true;
+    requestAnimationFrame(categoriaAtual);
+  }, { passive: true });
   function spy() {
-    if (!('IntersectionObserver' in window)) return;
-    if (spyObs) spyObs.disconnect();
-    spyObs = new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) {
-        if (!en.isIntersecting) return;
-        var id = en.target.id;
-        $$('#tabs a').forEach(function (a) {
-          var on = a.getAttribute('href') === '#' + id;
-          a.classList.toggle('is-active', on);
-          if (on) a.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
-        });
-      });
-    }, { rootMargin: '-35% 0px -60% 0px' });
-    $$('.menu-cat').forEach(function (s) { spyObs.observe(s); });
+    secoes = $$('.menu-cat');
+    abaAtiva = '';
+    categoriaAtual();
   }
   menuRoot.addEventListener('click', function (e) { var b = e.target.closest('[data-dish]'); if (b) openDish(b.getAttribute('data-dish')); });
 
